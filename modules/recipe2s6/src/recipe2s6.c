@@ -92,7 +92,13 @@ static GgError generate_run_script(
     gg_byte_vec_chain_append(&ret, &script, GG_STR("exec 2>&1\n"));
 
     // Working directory
-    gg_byte_vec_chain_append(&ret, &script, GG_STR("cd "));
+    gg_byte_vec_chain_append(&ret, &script, GG_STR("mkdir -p "));
+    gg_byte_vec_chain_append(
+        &ret, &script, gg_buffer_from_null_term(args->root_dir)
+    );
+    gg_byte_vec_chain_append(&ret, &script, GG_STR("/work/"));
+    gg_byte_vec_chain_append(&ret, &script, component_name);
+    gg_byte_vec_chain_append(&ret, &script, GG_STR("\ncd "));
     gg_byte_vec_chain_append(
         &ret, &script, gg_buffer_from_null_term(args->root_dir)
     );
