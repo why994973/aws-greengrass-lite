@@ -50,6 +50,7 @@ static GgError generate_run_script(
     GgBuffer component_version,
     bool is_root,
     GgMap set_env,
+    GgBuffer phase,
     char *svc_dir
 ) {
     static uint8_t script_buf[MAX_RUN_SCRIPT_LEN];
@@ -64,6 +65,14 @@ static GgError generate_run_script(
         &ret, &script, gg_buffer_from_null_term(args->root_dir)
     );
     gg_byte_vec_chain_append(&ret, &script, GG_STR("\n"));
+    gg_byte_vec_chain_append(
+        &ret, &script,
+        GG_STR("export AWS_GG_NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT=")
+    );
+    gg_byte_vec_chain_append(
+        &ret, &script, gg_buffer_from_null_term(args->root_dir)
+    );
+    gg_byte_vec_chain_append(&ret, &script, GG_STR("/gg-ipc.socket\n"));
 
     // Write setenv entries from recipe
     if (set_env.len > 0) {
@@ -112,10 +121,8 @@ static GgError generate_run_script(
     gg_byte_vec_chain_append(&ret, &script, GG_STR(" -v "));
     gg_byte_vec_chain_append(&ret, &script, component_version);
     gg_byte_vec_chain_append(&ret, &script, GG_STR(" -p "));
-    gg_byte_vec_chain_append(
-        &ret, &script, gg_buffer_from_null_term(args->root_dir)
-    );
-    gg_byte_vec_chain_append(&ret, &script, GG_STR("/\n"));
+    gg_byte_vec_chain_append(&ret, &script, phase);
+    gg_byte_vec_chain_append(&ret, &script, GG_STR("\n"));
 
     if (ret != GG_ERR_OK) {
         GG_LOGE("Failed to build run script");
@@ -220,7 +227,7 @@ GgError recipe2s6_generate(
     }
 
     ret = generate_run_script(
-        args, comp_name, comp_version, is_root, set_env, svc_dir
+        args, comp_name, comp_version, is_root, set_env, phase, svc_dir
     );
     if (ret != GG_ERR_OK) {
         return ret;
