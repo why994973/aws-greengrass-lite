@@ -2,6 +2,12 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+if(GG_USE_SYSTEMD)
+  set(GGDEPLOYMENTD_PLATFORM_LIBS PkgConfig::libsystemd)
+else()
+  set(GGDEPLOYMENTD_PLATFORM_LIBS)
+endif()
+
 ggl_init_module(
   ggdeploymentd
   LIBS gg-sdk
@@ -25,4 +31,4 @@ ggl_init_module(
        core-bus-sub-response
        recipe2unit
        PkgConfig::uuid
-       PkgConfig::libsystemd)
+       ${GGDEPLOYMENTD_PLATFORM_LIBS})

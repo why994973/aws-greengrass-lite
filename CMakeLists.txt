@@ -22,6 +22,8 @@ if(GGL_LOG_LEVEL AND NOT GG_LOG_LEVEL)
       CACHE STRING "" FORCE)
 endif()
 
+option(GG_USE_SYSTEMD "Use systemd for process management" ON)
+
 option(GGL_SYSTEMD_SERVICE_BUILD "Install GGL as a set of systemd services"
        TRUE)
 set(GGL_SYSTEMD_SYSTEM_DIR
@@ -269,7 +271,12 @@ pkg_search_module(openssl REQUIRED IMPORTED_TARGET openssl)
 pkg_search_module(libcurl REQUIRED IMPORTED_TARGET libcurl>=7.68)
 pkg_search_module(sqlite3 REQUIRED IMPORTED_TARGET sqlite3)
 pkg_search_module(yaml REQUIRED IMPORTED_TARGET yaml-0.1)
-pkg_search_module(libsystemd REQUIRED IMPORTED_TARGET libsystemd)
+if(GG_USE_SYSTEMD)
+  pkg_search_module(libsystemd REQUIRED IMPORTED_TARGET libsystemd)
+  add_compile_definitions(GG_USE_SYSTEMD=1)
+else()
+  add_compile_definitions(GG_USE_SYSTEMD=0)
+endif()
 pkg_search_module(uuid REQUIRED IMPORTED_TARGET uuid)
 pkg_search_module(libevent REQUIRED IMPORTED_TARGET libevent)
 pkg_search_module(liburiparser REQUIRED IMPORTED_TARGET liburiparser)
@@ -321,7 +328,7 @@ function(ggl_init_module name)
     target_link_libraries(${name} PRIVATE ${COMP_ARG_LIBS})
   endif()
 
-  if(GGL_SYSTEMD_SERVICE_BUILD)
+  if(GG_USE_SYSTEMD AND GGL_SYSTEMD_SERVICE_BUILD)
     file(GLOB_RECURSE SERVICES CONFIGURE_DEPENDS
          "${CMAKE_CURRENT_LIST_DIR}/unit/*.in")
 
@@ -363,7 +370,7 @@ foreach(module ${MODULES})
   add_subdirectory(${module})
 endforeach()
 
-if(GGL_SYSTEMD_SERVICE_BUILD)
+if(GG_USE_SYSTEMD AND GGL_SYSTEMD_SERVICE_BUILD)
   add_custom_target(
     greengrass-lite.target ALL
     COMMAND cp "${CMAKE_SOURCE_DIR}/misc/systemd/greengrass-lite.target"
@@ -411,16 +418,22 @@ set(CPACK_PACKAGE_CONTACT
 
 set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF)
 
-set(CPACK_DEBIAN_PACKAGE_DEPENDS
+set(GGL_DEB_BASE_DEPS
     "cgroup-tools (>= 2.0), \
     libcurl4 | libcurl4t64 | libcurl3-gnutls (>= 7.68), \
     libevent-2.1-7 | libevent-2.1-7t64 | libevent-2.1-6 (>= 2.1.12), \
     libsqlite3-0 (>= 3.37.2), \
     libssl3 | libssl3t64 (>= 3.0), \
-    libsystemd0 (>= 249), \
     liburiparser1 (>= 0.9.6), \
     libuuid1 (>= 2.37.2), \
     libyaml-0-2 (>= 0.2.2)")
+
+if(GG_USE_SYSTEMD)
+  set(CPACK_DEBIAN_PACKAGE_DEPENDS
+      "${GGL_DEB_BASE_DEPS}, libsystemd0 (>= 249)")
+else()
+  set(CPACK_DEBIAN_PACKAGE_DEPENDS "${GGL_DEB_BASE_DEPS}")
+endif()
 
 set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
     ${CMAKE_CURRENT_SOURCE_DIR}/debian/postinst
