@@ -19,7 +19,7 @@
 static GgError s6_start(GgBuffer name) {
     char cmd[S6_CMD_BUF_SIZE];
     int ret = snprintf(
-        cmd, sizeof(cmd), "s6-svc -u " S6_SVC_DIR "%.*s",
+        cmd, sizeof(cmd), "s6-svc -u " S6_SVC_DIR "ggl.%.*s",
         (int) name.len, (char *) name.data
     );
     if (ret < 0 || (size_t) ret >= sizeof(cmd)) {
@@ -32,7 +32,7 @@ static GgError s6_start(GgBuffer name) {
 static GgError s6_stop(GgBuffer name) {
     char cmd[S6_CMD_BUF_SIZE];
     int ret = snprintf(
-        cmd, sizeof(cmd), "s6-svc -d " S6_SVC_DIR "%.*s",
+        cmd, sizeof(cmd), "s6-svc -d " S6_SVC_DIR "ggl.%.*s",
         (int) name.len, (char *) name.data
     );
     if (ret < 0 || (size_t) ret >= sizeof(cmd)) {
@@ -46,7 +46,7 @@ static GgError s6_status(GgBuffer name, SvcMgrState *state) {
     char cmd[S6_CMD_BUF_SIZE];
     int ret = snprintf(
         cmd, sizeof(cmd),
-        "s6-svstat -o up,ready " S6_SVC_DIR "%.*s 2>/dev/null",
+        "s6-svstat -o up,ready " S6_SVC_DIR "ggl.%.*s 2>/dev/null",
         (int) name.len, (char *) name.data
     );
     if (ret < 0 || (size_t) ret >= sizeof(cmd)) {
@@ -87,47 +87,50 @@ static GgError s6_status(GgBuffer name, SvcMgrState *state) {
 static GgError s6_register_service(
     GgBuffer name, GgBuffer exec_path, GgBuffer *args, size_t args_len
 ) {
+    (void) exec_path;
     (void) args;
     (void) args_len;
 
     char svc_dir[S6_CMD_BUF_SIZE];
     int ret = snprintf(
-        svc_dir, sizeof(svc_dir), S6_SVC_DIR "%.*s",
+        svc_dir, sizeof(svc_dir), S6_SVC_DIR "ggl.%.*s",
         (int) name.len, (char *) name.data
     );
     if (ret < 0 || (size_t) ret >= sizeof(svc_dir)) {
         return GG_ERR_RANGE;
     }
 
-    // Create service directory
-    if (mkdir(svc_dir, 0755) != 0) {
-        GG_LOGW("Service dir may already exist: %s", svc_dir);
-    }
-
-    // Write run script
+    // Check if service directory with run script already exists
+    // (created by recipe2s6_generate)
     char run_path[S6_CMD_BUF_SIZE];
     snprintf(run_path, sizeof(run_path), "%s/run", svc_dir);
-    FILE *fp = fopen(run_path, "w");
-    if (fp == NULL) {
-        return GG_ERR_FAILURE;
-    }
-    fprintf(
-        fp,
-        "#!/bin/bash\nexec 2>&1\nexec %.*s\n",
-        (int) exec_path.len, (char *) exec_path.data
-    );
-    fclose(fp);
-    chmod(run_path, 0755);
+    if (access(run_path, X_OK) != 0) {
+        // No existing run script — create a basic service directory
+        if (mkdir(svc_dir, 0755) != 0) {
+            GG_LOGW("Service dir may already exist: %s", svc_dir);
+        }
 
-    // Write notification-fd
-    char nfd_path[S6_CMD_BUF_SIZE];
-    snprintf(nfd_path, sizeof(nfd_path), "%s/notification-fd", svc_dir);
-    fp = fopen(nfd_path, "w");
-    if (fp == NULL) {
-        return GG_ERR_FAILURE;
+        FILE *fp = fopen(run_path, "w");
+        if (fp == NULL) {
+            return GG_ERR_FAILURE;
+        }
+        fprintf(
+            fp,
+            "#!/bin/bash\nexec 2>&1\nexec %.*s\n",
+            (int) exec_path.len, (char *) exec_path.data
+        );
+        fclose(fp);
+        chmod(run_path, 0755);
+
+        char nfd_path[S6_CMD_BUF_SIZE];
+        snprintf(nfd_path, sizeof(nfd_path), "%s/notification-fd", svc_dir);
+        fp = fopen(nfd_path, "w");
+        if (fp == NULL) {
+            return GG_ERR_FAILURE;
+        }
+        fprintf(fp, "3\n");
+        fclose(fp);
     }
-    fprintf(fp, "3\n");
-    fclose(fp);
 
     // Signal s6-svscan to rescan
     (void) !system("s6-svscanctl -a " S6_SVC_DIR);

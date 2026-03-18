@@ -3659,6 +3659,7 @@ static void handle_deployment(
             static uint8_t service_file_path_buf[PATH_MAX];
             GgByteVec service_file_path_vec
                 = GG_BYTE_VEC(service_file_path_buf);
+#if GG_USE_SYSTEMD
             ret = gg_byte_vec_append(&service_file_path_vec, args->root_path);
             gg_byte_vec_chain_append(&ret, &service_file_path_vec, GG_STR("/"));
             gg_byte_vec_chain_append(
@@ -3670,6 +3671,17 @@ static void handle_deployment(
             gg_byte_vec_chain_append(
                 &ret, &service_file_path_vec, GG_STR(".service")
             );
+#else
+            ret = gg_byte_vec_append(
+                &service_file_path_vec, GG_STR("/run/service/ggl.")
+            );
+            gg_byte_vec_chain_append(
+                &ret, &service_file_path_vec, component_name
+            );
+            gg_byte_vec_chain_append(
+                &ret, &service_file_path_vec, GG_STR("/run")
+            );
+#endif
             if (ret == GG_ERR_OK) {
                 // check if the current component name has relevant run
                 // service file created
