@@ -19,7 +19,11 @@
 #include <netinet/in.h>
 #include <string.h>
 #include <sys/socket.h>
+#if GG_USE_SYSTEMD
 #include <systemd/sd-daemon.h>
+#else
+#include <svcmgr_client.h>
+#endif
 #include <stdbool.h>
 #include <stdio.h>
 
@@ -305,11 +309,15 @@ GgError http_server(void) {
         return ret;
     }
 
+#if GG_USE_SYSTEMD
     int ret_val = sd_notify(0, "READY=1");
     if (ret_val < 0) {
         GG_LOGE("Unable to update component state (errno=%d)", -ret_val);
         return GG_ERR_FATAL;
     }
+#else
+    (void) svcmgr_notify_ready("tes-serverd");
+#endif
 
     // Start the event loop
     event_base_dispatch(base);

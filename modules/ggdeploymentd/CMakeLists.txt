@@ -5,7 +5,7 @@
 if(GG_USE_SYSTEMD)
   set(GGDEPLOYMENTD_PLATFORM_LIBS PkgConfig::libsystemd)
 else()
-  set(GGDEPLOYMENTD_PLATFORM_LIBS)
+  set(GGDEPLOYMENTD_PLATFORM_LIBS svcmgr-client)
 endif()
 
 ggl_init_module(

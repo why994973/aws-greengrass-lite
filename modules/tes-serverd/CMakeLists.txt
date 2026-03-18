@@ -5,7 +5,7 @@
 if(GG_USE_SYSTEMD)
   set(TES_SERVERD_PLATFORM_LIBS PkgConfig::libsystemd)
 else()
-  set(TES_SERVERD_PLATFORM_LIBS)
+  set(TES_SERVERD_PLATFORM_LIBS svcmgr-client)
 endif()
 
 ggl_init_module(

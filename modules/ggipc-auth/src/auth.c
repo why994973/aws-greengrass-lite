@@ -10,6 +10,9 @@
 #include <ggipc/auth.h>
 #include <string.h>
 #include <sys/types.h>
+
+#if GG_USE_SYSTEMD
+
 #include <systemd/sd-login.h>
 
 GgError ggl_ipc_auth_validate_name(pid_t pid, GgBuffer component_name) {
@@ -55,3 +58,14 @@ GgError ggl_ipc_auth_validate_name(pid_t pid, GgBuffer component_name) {
 
     return GG_ERR_OK;
 }
+
+#else // !GG_USE_SYSTEMD
+
+GgError ggl_ipc_auth_validate_name(pid_t pid, GgBuffer component_name) {
+    // POC: stub — always succeed without systemd PID-to-unit lookup
+    (void) pid;
+    (void) component_name;
+    return GG_ERR_OK;
+}
+
+#endif // GG_USE_SYSTEMD

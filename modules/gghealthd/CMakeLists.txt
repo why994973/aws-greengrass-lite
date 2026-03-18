@@ -5,7 +5,7 @@
 if(GG_USE_SYSTEMD)
   set(GGHEALTHD_PLATFORM_LIBS PkgConfig::libsystemd)
 else()
-  set(GGHEALTHD_PLATFORM_LIBS)
+  set(GGHEALTHD_PLATFORM_LIBS svcmgr-client)
 endif()
 
 ggl_init_module(

@@ -2,6 +2,8 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+#if GG_USE_SYSTEMD
+
 #include "sd_bus.h"
 #include <assert.h>
 #include <errno.h>
@@ -375,3 +377,5 @@ GgError restart_component(sd_bus *bus, const char *qualified_name) {
     }
     return GG_ERR_OK;
 }
+
+#endif // GG_USE_SYSTEMD

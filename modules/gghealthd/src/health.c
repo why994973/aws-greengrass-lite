@@ -4,6 +4,8 @@
 
 #include "health.h"
 #include "bus_client.h"
+
+#if GG_USE_SYSTEMD
 #include "sd_bus.h"
 #include "subscriptions.h"
 #include <assert.h>
@@ -278,3 +280,64 @@ GgError gghealthd_init(void) {
     init_health_events();
     return GG_ERR_OK;
 }
+
+#else // !GG_USE_SYSTEMD
+
+#include "subscriptions.h"
+#include <gg/buffer.h>
+#include <gg/error.h>
+#include <gg/log.h>
+#include <gg/types.h>
+#include <svcmgr_client.h>
+#include <stdint.h>
+
+GgError gghealthd_get_status(GgBuffer component_name, GgBuffer *status) {
+    if (gg_buffer_eq(component_name, GG_STR("gghealthd"))) {
+        *status = GG_STR("RUNNING");
+        return GG_ERR_OK;
+    }
+    return svcmgr_get_status(component_name, status);
+}
+
+GgError gghealthd_update_status(GgBuffer component_name, GgBuffer status) {
+    (void) component_name;
+    (void) status;
+    // POC: status updates are tracked by service manager via notify_ready
+    return GG_ERR_OK;
+}
+
+GgError gghealthd_get_health(GgBuffer *status) {
+    *status = GG_STR("HEALTHY");
+    return GG_ERR_OK;
+}
+
+GgError gghealthd_restart_component(GgBuffer component_name) {
+    GgError ret = svcmgr_stop(component_name);
+    if (ret != GG_ERR_OK) {
+        return ret;
+    }
+    return svcmgr_start(component_name);
+}
+
+GgError gghealthd_register_lifecycle_subscription(
+    GgBuffer component_name, uint32_t handle
+) {
+    (void) component_name;
+    (void) handle;
+    return GG_ERR_UNSUPPORTED;
+}
+
+void gghealthd_unregister_lifecycle_subscription(void *ctx, uint32_t handle) {
+    (void) ctx;
+    (void) handle;
+}
+
+void init_health_events(void) {
+}
+
+GgError gghealthd_init(void) {
+    (void) svcmgr_notify_ready("gghealthd");
+    return GG_ERR_OK;
+}
+
+#endif // GG_USE_SYSTEMD

@@ -2,6 +2,8 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+#if GG_USE_SYSTEMD
+
 #include "subscriptions.h"
 #include "sd_bus.h"
 #include <assert.h>
@@ -274,3 +276,5 @@ void gghealthd_unregister_lifecycle_subscription(void *ctx, uint32_t handle) {
         }
     }
 }
+
+#endif // GG_USE_SYSTEMD
