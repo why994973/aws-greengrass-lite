@@ -23,6 +23,9 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#if !GG_USE_SYSTEMD
+#include <svcmgr_client.h>
+#endif
 
 // Forward declare structure for use in the function below.
 struct stat;
@@ -333,6 +336,18 @@ static GgError delete_recipe_script_and_service_files(GgBuffer *component_name
 GgError disable_and_unlink_service(
     GgBuffer *component_name, PhaseSelection phase
 ) {
+#if !GG_USE_SYSTEMD
+    // s6 path: just stop via service manager
+    (void) phase;
+    GgBuffer svc_name = *component_name;
+    (void) svcmgr_stop(svc_name);
+    GG_LOGI(
+        "Stopped s6 service for %.*s",
+        (int) component_name->len,
+        component_name->data
+    );
+    return GG_ERR_OK;
+#else
     static uint8_t command_array[PATH_MAX];
     GgByteVec command_vec = GG_BYTE_VEC(command_array);
 
@@ -508,6 +523,7 @@ GgError disable_and_unlink_service(
     }
 
     return GG_ERR_OK;
+#endif // GG_USE_SYSTEMD
 }
 
 GgError cleanup_stale_versions(GgMap latest_components_map) {

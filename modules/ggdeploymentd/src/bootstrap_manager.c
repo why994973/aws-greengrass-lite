@@ -24,6 +24,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+#if !GG_USE_SYSTEMD
+#include <svcmgr_client.h>
+#endif
 
 bool component_bootstrap_phase_completed(GgBuffer component_name) {
     // check config to see if component bootstrap steps have already been
@@ -510,6 +513,7 @@ GgError process_bootstrap_phase(
                 bootstrap_component_count++;
 
                 // initiate link command for 'bootstrap'
+#if GG_USE_SYSTEMD
                 static uint8_t link_command_buf[PATH_MAX];
                 GgByteVec link_command_vec = GG_BYTE_VEC(link_command_buf);
                 ret = gg_byte_vec_append(
@@ -626,6 +630,21 @@ GgError process_bootstrap_phase(
                     );
                     return ret;
                 }
+#else // !GG_USE_SYSTEMD
+                ret = svcmgr_register(
+                    component_name,
+                    bootstrap_service_file_path_vec.buf
+                );
+                if (ret != GG_ERR_OK) {
+                    GG_LOGE(
+                        "Failed to register bootstrap service for %.*s",
+                        (int) component_name.len,
+                        component_name.data
+                    );
+                    return ret;
+                }
+                (void) svcmgr_start(component_name);
+#endif // GG_USE_SYSTEMD
             }
         }
     }
@@ -640,6 +659,7 @@ GgError process_bootstrap_phase(
 
         GG_LOGI("Rebooting device for bootstrap.");
         // NOLINTNEXTLINE(concurrency-mt-unsafe)
+#if GG_USE_SYSTEMD
         int system_ret = system("systemctl reboot");
         if (WIFEXITED(system_ret)) {
             if (WEXITSTATUS(system_ret) != 0) {
@@ -652,6 +672,9 @@ GgError process_bootstrap_phase(
         } else {
             GG_LOGE("systemctl reboot did not exit normally");
         }
+#else
+        (void) !system("reboot");
+#endif
     }
 
     return GG_ERR_OK;

@@ -53,6 +53,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+#if !GG_USE_SYSTEMD
+#include <svcmgr_client.h>
+#endif
 
 #define MAX_DECODE_BUF_LEN 4096
 #define DEPLOYMENT_TARGET_NAME_MAX_CHARS 128
@@ -3476,6 +3479,7 @@ static void handle_deployment(
                     }
 
                     // initiate link command for 'install'
+#if GG_USE_SYSTEMD
                     static uint8_t link_command_buf[PATH_MAX];
                     GgByteVec link_command_vec = GG_BYTE_VEC(link_command_buf);
                     ret = gg_byte_vec_append(
@@ -3585,6 +3589,21 @@ static void handle_deployment(
                         );
                         return;
                     }
+#else // !GG_USE_SYSTEMD
+                    ret = svcmgr_register(
+                        component_name,
+                        install_service_file_path_vec.buf
+                    );
+                    if (ret != GG_ERR_OK) {
+                        GG_LOGE(
+                            "Failed to register install service for %.*s",
+                            (int) component_name.len,
+                            component_name.data
+                        );
+                        return;
+                    }
+                    (void) svcmgr_start(component_name);
+#endif // GG_USE_SYSTEMD
                 }
             }
         }
@@ -3631,6 +3650,7 @@ static void handle_deployment(
                     GG_CLEANUP(cleanup_close, fd);
                     (void
                     ) disable_and_unlink_service(&component_name, RUN_STARTUP);
+#if GG_USE_SYSTEMD
                     // run link command
                     static uint8_t link_command_buf[PATH_MAX];
                     GgByteVec link_command_vec = GG_BYTE_VEC(link_command_buf);
@@ -3704,6 +3724,20 @@ static void handle_deployment(
                         GG_LOGE("systemctl enable did not exit normally");
                         return;
                     }
+#else // !GG_USE_SYSTEMD
+                    ret = svcmgr_register(
+                        component_name, service_file_path_vec.buf
+                    );
+                    if (ret != GG_ERR_OK) {
+                        GG_LOGE(
+                            "Failed to register run service for %.*s",
+                            (int) component_name.len,
+                            component_name.data
+                        );
+                        return;
+                    }
+                    (void) svcmgr_start(component_name);
+#endif // GG_USE_SYSTEMD
                 }
             }
 
@@ -3717,6 +3751,7 @@ static void handle_deployment(
         }
 
         // run daemon-reload command once all the files are linked
+#if GG_USE_SYSTEMD
         static uint8_t reload_command_buf[PATH_MAX];
         GgByteVec reload_command_vec = GG_BYTE_VEC(reload_command_buf);
         ret = gg_byte_vec_append(
@@ -3741,14 +3776,17 @@ static void handle_deployment(
             GG_LOGE("systemctl daemon-reload did not exit normally");
             return;
         }
+#endif // GG_USE_SYSTEMD
     }
 
+#if GG_USE_SYSTEMD
     // NOLINTNEXTLINE(concurrency-mt-unsafe)
     int system_ret = system("systemctl reset-failed");
     (void) (system_ret);
     // NOLINTNEXTLINE(concurrency-mt-unsafe)
     system_ret = system("systemctl start greengrass-lite.target");
     (void) (system_ret);
+#endif // GG_USE_SYSTEMD
 
     ret = wait_for_deployment_status(resolved_components_kv_vec.map);
     if (ret != GG_ERR_OK) {
