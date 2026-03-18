@@ -3,9 +3,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 if(GG_USE_SYSTEMD)
-  set(GGDEPLOYMENTD_PLATFORM_LIBS PkgConfig::libsystemd)
+  set(GGDEPLOYMENTD_PLATFORM_LIBS PkgConfig::libsystemd recipe2unit)
 else()
-  set(GGDEPLOYMENTD_PLATFORM_LIBS svcmgr-client)
+  set(GGDEPLOYMENTD_PLATFORM_LIBS svcmgr-client recipe2s6)
 endif()
 
 ggl_init_module(
@@ -29,6 +29,5 @@ ggl_init_module(
        core-bus-gg-config
        core-bus-aws-iot-mqtt
        core-bus-sub-response
-       recipe2unit
        PkgConfig::uuid
        ${GGDEPLOYMENTD_PLATFORM_LIBS})

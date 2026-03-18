@@ -42,7 +42,11 @@
 #include <ggl/nucleus/constants.h>
 #include <ggl/process.h>
 #include <ggl/recipe.h>
+#if GG_USE_SYSTEMD
 #include <ggl/recipe2unit.h>
+#else
+#include <ggl/recipe2s6.h>
+#endif
 #include <ggl/semver.h>
 #include <ggl/uri.h>
 #include <ggl/zip.h>
@@ -3266,6 +3270,13 @@ static void handle_deployment(
             group = posix_user;
         }
 
+        GgObject recipe_buff_obj;
+        GgObject *component_name;
+        static uint8_t unit_convert_alloc_mem[GGL_COMPONENT_RECIPE_MAX_LEN];
+        GgArena unit_convert_alloc
+            = gg_arena_init(GG_BUF(unit_convert_alloc_mem));
+
+#if GG_USE_SYSTEMD
         static Recipe2UnitArgs recipe2unit_args;
         memset(&recipe2unit_args, 0, sizeof(Recipe2UnitArgs));
         recipe2unit_args.user = posix_user;
@@ -3284,11 +3295,6 @@ static void handle_deployment(
         );
         recipe2unit_args.root_path_fd = root_path_fd;
 
-        GgObject recipe_buff_obj;
-        GgObject *component_name;
-        static uint8_t unit_convert_alloc_mem[GGL_COMPONENT_RECIPE_MAX_LEN];
-        GgArena unit_convert_alloc
-            = gg_arena_init(GG_BUF(unit_convert_alloc_mem));
         HasPhase phases = { 0 };
         GgError err = convert_to_unit(
             &recipe2unit_args,
@@ -3297,6 +3303,35 @@ static void handle_deployment(
             &component_name,
             &phases
         );
+#else
+        static Recipe2S6Args recipe2s6_args;
+        memset(&recipe2s6_args, 0, sizeof(Recipe2S6Args));
+        recipe2s6_args.user = posix_user;
+        recipe2s6_args.group = group;
+
+        recipe2s6_args.component_name = gg_kv_key(*pair);
+        recipe2s6_args.component_version = pair_val;
+
+        memcpy(
+            recipe2s6_args.recipe_runner_path,
+            recipe_runner_path_vec.buf.data,
+            recipe_runner_path_vec.buf.len
+        );
+        memcpy(
+            recipe2s6_args.root_dir,
+            args->root_path.data,
+            args->root_path.len
+        );
+        memcpy(recipe2s6_args.service_dir, "/run/service", 12);
+        recipe2s6_args.root_path_fd = root_path_fd;
+
+        GgError err = recipe2s6_generate(
+            &recipe2s6_args,
+            &unit_convert_alloc,
+            &recipe_buff_obj,
+            &component_name
+        );
+#endif
 
         if (err != GG_ERR_OK) {
             return;
