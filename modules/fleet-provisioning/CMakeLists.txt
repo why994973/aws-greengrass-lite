@@ -2,6 +2,11 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+# Fleet provisioning requires OpenSSL 3.x (OSSL_PROVIDER) — skip on Android (has 1.1.1)
+if(GG_PLATFORM STREQUAL "ANDROID")
+  return()
+endif()
+
 ggl_init_module(
   fleet-provision
   LIBS gg-sdk

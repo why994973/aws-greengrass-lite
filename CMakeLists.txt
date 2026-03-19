@@ -24,6 +24,19 @@ endif()
 
 option(GG_USE_SYSTEMD "Use systemd for process management" ON)
 
+set(GG_PLATFORM
+    "LINUX"
+    CACHE STRING "Target platform: LINUX, ANDROID")
+
+if(GG_PLATFORM STREQUAL "ANDROID")
+  set(GG_USE_SYSTEMD
+      OFF
+      CACHE BOOL "" FORCE)
+  add_compile_definitions(GG_PLATFORM_ANDROID=1)
+else()
+  add_compile_definitions(GG_PLATFORM_ANDROID=0)
+endif()
+
 option(GGL_SYSTEMD_SERVICE_BUILD "Install GGL as a set of systemd services"
        TRUE)
 set(GGL_SYSTEMD_SYSTEM_DIR
@@ -265,22 +278,123 @@ endforeach()
 #
 # System deps
 #
-find_package(PkgConfig REQUIRED)
+if(GG_PLATFORM STREQUAL "ANDROID")
+  # Brazil-provided deps from LIB_BUILDROOT — use static .a files
+  find_library(OPENSSL_SSL_LIBRARY libssl.a PATHS "${LIB_BUILDROOT}/lib" NO_DEFAULT_PATH REQUIRED)
+  find_library(OPENSSL_CRYPTO_LIBRARY libcrypto.a PATHS "${LIB_BUILDROOT}/lib" NO_DEFAULT_PATH REQUIRED)
+  find_path(OPENSSL_INCLUDE_DIR openssl/ssl.h PATHS "${LIB_BUILDROOT}/include" NO_DEFAULT_PATH REQUIRED)
+  add_library(PkgConfig::openssl INTERFACE IMPORTED)
+  target_link_libraries(PkgConfig::openssl INTERFACE ${OPENSSL_SSL_LIBRARY} ${OPENSSL_CRYPTO_LIBRARY})
+  target_include_directories(PkgConfig::openssl INTERFACE ${OPENSSL_INCLUDE_DIR})
 
-pkg_search_module(openssl REQUIRED IMPORTED_TARGET openssl)
-pkg_search_module(libcurl REQUIRED IMPORTED_TARGET libcurl>=7.68)
-pkg_search_module(sqlite3 REQUIRED IMPORTED_TARGET sqlite3)
-pkg_search_module(yaml REQUIRED IMPORTED_TARGET yaml-0.1)
-if(GG_USE_SYSTEMD)
-  pkg_search_module(libsystemd REQUIRED IMPORTED_TARGET libsystemd)
-  add_compile_definitions(GG_USE_SYSTEMD=1)
-else()
+  find_library(CURL_LIBRARY libcurl.a PATHS "${LIB_BUILDROOT}/lib" NO_DEFAULT_PATH REQUIRED)
+  find_path(CURL_INCLUDE_DIR curl/curl.h PATHS "${LIB_BUILDROOT}/include" NO_DEFAULT_PATH REQUIRED)
+  add_library(PkgConfig::libcurl INTERFACE IMPORTED)
+  target_link_libraries(PkgConfig::libcurl INTERFACE ${CURL_LIBRARY} PkgConfig::openssl)
+  target_include_directories(PkgConfig::libcurl INTERFACE ${CURL_INCLUDE_DIR})
+
+  find_library(ZLIB_LIBRARY libz.a PATHS "${LIB_BUILDROOT}/lib" NO_DEFAULT_PATH REQUIRED)
+  find_path(ZLIB_INCLUDE_DIR zlib.h PATHS "${LIB_BUILDROOT}/include" NO_DEFAULT_PATH REQUIRED)
+  add_library(PkgConfig::zlib INTERFACE IMPORTED)
+  target_link_libraries(PkgConfig::zlib INTERFACE ${ZLIB_LIBRARY})
+  target_include_directories(PkgConfig::zlib INTERFACE ${ZLIB_INCLUDE_DIR})
+  # Ensure zlib is available globally for transitive deps (libzip, curl)
+  link_libraries(${ZLIB_LIBRARY})
+
+  # c-ares (curl dependency)
+  find_library(CARES_LIBRARY libcares.a PATHS "${LIB_BUILDROOT}/lib" NO_DEFAULT_PATH)
+  if(CARES_LIBRARY)
+    target_link_libraries(PkgConfig::libcurl INTERFACE ${CARES_LIBRARY})
+  endif()
+
+  # FetchContent for deps without IhmDevice packages — using local sources
+  include(FetchContent)
+
+  # sqlite3 - bundled amalgamation (no network needed)
+  add_library(sqlite3_lib STATIC ${CMAKE_CURRENT_SOURCE_DIR}/compat/sqlite3.c)
+  target_include_directories(sqlite3_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/compat)
+  target_compile_options(sqlite3_lib PRIVATE -w)
+  add_library(PkgConfig::sqlite3 ALIAS sqlite3_lib)
+
+  FetchContent_Declare(yaml_src SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/compat/libyaml)
+  FetchContent_MakeAvailable(yaml_src)
+  add_library(PkgConfig::yaml ALIAS yaml)
+
+  set(EVENT__DISABLE_TESTS ON CACHE BOOL "" FORCE)
+  set(EVENT__DISABLE_SAMPLES ON CACHE BOOL "" FORCE)
+  set(EVENT__DISABLE_BENCHMARK ON CACHE BOOL "" FORCE)
+  set(EVENT__LIBRARY_TYPE STATIC CACHE STRING "" FORCE)
+  # Android Bionic has pthreads built-in — pre-satisfy FindThreads
+  set(CMAKE_THREAD_LIBS_INIT "" CACHE STRING "" FORCE)
+  set(CMAKE_HAVE_THREADS_LIBRARY TRUE CACHE BOOL "" FORCE)
+  set(CMAKE_USE_PTHREADS_INIT TRUE CACHE BOOL "" FORCE)
+  set(Threads_FOUND TRUE CACHE BOOL "" FORCE)
+  set(CMAKE_HAVE_LIBC_PTHREAD TRUE CACHE BOOL "" FORCE)
+  FetchContent_Declare(libevent_src SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/compat/libevent)
+  FetchContent_MakeAvailable(libevent_src)
+  add_library(PkgConfig::libevent INTERFACE IMPORTED)
+  target_link_libraries(PkgConfig::libevent INTERFACE event_static)
+
+  set(URIPARSER_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+  set(URIPARSER_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+  set(URIPARSER_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+  FetchContent_Declare(uriparser_src SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/compat/uriparser)
+  FetchContent_MakeAvailable(uriparser_src)
+  add_library(PkgConfig::liburiparser ALIAS uriparser)
+
+  set(BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+  set(BUILD_REGRESS OFF CACHE BOOL "" FORCE)
+  set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+  set(BUILD_DOC OFF CACHE BOOL "" FORCE)
+  set(ZLIB_LIBRARY ${ZLIB_LIBRARY} CACHE FILEPATH "" FORCE)
+  set(ZLIB_INCLUDE_DIR ${ZLIB_INCLUDE_DIR} CACHE PATH "" FORCE)
+  FetchContent_Declare(libzip_src SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/compat/libzip)
+  FetchContent_MakeAvailable(libzip_src)
+  add_library(PkgConfig::libzip INTERFACE IMPORTED)
+  target_link_libraries(PkgConfig::libzip INTERFACE zip ${ZLIB_LIBRARY})
+
+  # libuuid - minimal implementation for Android
+  # Android doesn't have util-linux; provide a minimal uuid_generate wrapper
+  add_library(uuid_lib STATIC ${CMAKE_CURRENT_SOURCE_DIR}/compat/android_uuid.c)
+  target_include_directories(uuid_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/compat)
+  add_library(PkgConfig::uuid ALIAS uuid_lib)
+
+  # argp - Android Bionic doesn't have argp.h
+  FetchContent_Declare(argp_src SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/compat/argp-standalone)
+  FetchContent_MakeAvailable(argp_src)
+  # Suppress warnings in third-party argp code
+  target_compile_options(argp-standalone PRIVATE -w)
+  # Alias so -largp finds it
+  add_library(argp ALIAS argp-standalone)
+  # Make argp.h available to the whole project
+  include_directories(SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/compat/argp-standalone/include/argp-standalone)
+
+  # OpenSSL compat shims (types.h -> ossl_typ.h for 1.1.1)
+  include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/compat)
+  # OpenSSL 3.x function renames + Bionic libc compat (strverscmp, etc.)
+  # Use CMAKE_C_FLAGS to avoid applying to .S assembly files
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -include ${CMAKE_CURRENT_SOURCE_DIR}/compat/ggl_android_compat.h")
+
   add_compile_definitions(GG_USE_SYSTEMD=0)
+
+else()
+  find_package(PkgConfig REQUIRED)
+
+  pkg_search_module(openssl REQUIRED IMPORTED_TARGET openssl)
+  pkg_search_module(libcurl REQUIRED IMPORTED_TARGET libcurl>=7.68)
+  pkg_search_module(sqlite3 REQUIRED IMPORTED_TARGET sqlite3)
+  pkg_search_module(yaml REQUIRED IMPORTED_TARGET yaml-0.1)
+  if(GG_USE_SYSTEMD)
+    pkg_search_module(libsystemd REQUIRED IMPORTED_TARGET libsystemd)
+    add_compile_definitions(GG_USE_SYSTEMD=1)
+  else()
+    add_compile_definitions(GG_USE_SYSTEMD=0)
+  endif()
+  pkg_search_module(uuid REQUIRED IMPORTED_TARGET uuid)
+  pkg_search_module(libevent REQUIRED IMPORTED_TARGET libevent)
+  pkg_search_module(liburiparser REQUIRED IMPORTED_TARGET liburiparser)
+  pkg_search_module(libzip REQUIRED IMPORTED_TARGET libzip)
 endif()
-pkg_search_module(uuid REQUIRED IMPORTED_TARGET uuid)
-pkg_search_module(libevent REQUIRED IMPORTED_TARGET libevent)
-pkg_search_module(liburiparser REQUIRED IMPORTED_TARGET liburiparser)
-pkg_search_module(libzip REQUIRED IMPORTED_TARGET libzip)
 
 include(CheckCSourceCompiles)
 

@@ -87,8 +87,8 @@ bool is_in_range(GgBuffer version, GgBuffer requirements_range) {
         return false;
     }
 
-    for (ulong index = 0; index < requirements_range.len; index++) {
-        if (requirements_range_as_char[index] == ' ') {
+    for (size_t idx = 0; idx < requirements_range.len; idx++) {
+        if (requirements_range_as_char[idx] == ' ') {
             // null terminating as strverscmp requires it
             ret = gg_byte_vec_append(&work_mem_vec, GG_STR("\0"));
             if (ret != GG_ERR_OK) {
@@ -104,11 +104,11 @@ bool is_in_range(GgBuffer version, GgBuffer requirements_range) {
             }
             // Rest once a value is parsed
             work_mem_vec.buf.len = 0;
-            index++;
+            idx++;
         }
         ret = gg_byte_vec_append(
             &work_mem_vec,
-            (GgBuffer) { (uint8_t *) &requirements_range_as_char[index], 1 }
+            (GgBuffer) { (uint8_t *) &requirements_range_as_char[idx], 1 }
         );
         if (ret != GG_ERR_OK) {
             GG_LOGE("Failed to copy information over");
