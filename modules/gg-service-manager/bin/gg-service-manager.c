@@ -8,7 +8,11 @@
 
 int main(void) {
     ggl_nucleus_init();
+#if GG_PLATFORM_ANDROID
+    svcmgr_init_android_backend();
+#else
     svcmgr_init_s6_backend();
+#endif
     GgError ret = run_gg_service_manager();
     if (ret != GG_ERR_OK) {
         return 1;

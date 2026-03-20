@@ -18,6 +18,9 @@ void svcmgr_set_backend(SvcMgrBackend *backend);
 /// Initialize the s6 backend (call before run_gg_service_manager).
 void svcmgr_init_s6_backend(void);
 
+/// Initialize the Android backend (call before run_gg_service_manager).
+void svcmgr_init_android_backend(void);
+
 /// Run the service manager daemon (blocks).
 GgError run_gg_service_manager(void);
 
