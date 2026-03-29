@@ -31,10 +31,20 @@ static inline int strverscmp(const char *s1, const char *s2) {
     return (unsigned char) *s1 - (unsigned char) *s2;
 }
 
-// memfd_create available in API 30+, shim for API 28 via syscall
+// memfd_create available in API 30+, shim via syscall
 #if __ANDROID_API__ < 30
 static inline int memfd_create(const char *name, unsigned int flags) {
     return (int) syscall(__NR_memfd_create, name, flags);
+}
+#endif
+
+// fexecve available in API 28+, shim via /proc/self/fd
+#if __ANDROID_API__ < 28
+#include <fcntl.h>
+static inline int fexecve(int fd, char *const argv[], char *const envp[]) {
+    char path[64];
+    snprintf(path, sizeof(path), "/proc/self/fd/%d", fd);
+    return execve(path, argv, envp);
 }
 #endif
 
