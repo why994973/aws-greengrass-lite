@@ -9,7 +9,11 @@
 #define GGL_INTERFACE_NAME_MAX_LEN 50
 
 /// Socket path prefix for core bus sockets.
+#if GG_PLATFORM_ANDROID
+#define GGL_INTERFACE_SOCKET_PREFIX "/data/data/com.amazon.greengrass.lite/run/"
+#else
 #define GGL_INTERFACE_SOCKET_PREFIX "/run/greengrass/"
+#endif
 
 /// Length of socket path prefix for core bus sockets.
 #define GGL_INTERFACE_SOCKET_PREFIX_LEN \

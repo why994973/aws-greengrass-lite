@@ -17,8 +17,15 @@ static struct argp_option opts[] = {
     { 0 }
 };
 
+#if GG_PLATFORM_ANDROID
+static GgBuffer config_path
+    = GG_STR("/data/data/com.amazon.greengrass.lite/config.yaml");
+static GgBuffer config_dir
+    = GG_STR("/data/data/com.amazon.greengrass.lite/config.d");
+#else
 static GgBuffer config_path = GG_STR("/etc/greengrass/config.yaml");
 static GgBuffer config_dir = GG_STR("/etc/greengrass/config.d");
+#endif
 
 static error_t arg_parser(int key, char *arg, struct argp_state *state) {
     (void) arg;
