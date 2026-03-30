@@ -57,7 +57,11 @@ static GgError generate_run_script(
     GgByteVec script = { .buf = { .data = script_buf, .len = 0 },
                          .capacity = MAX_RUN_SCRIPT_LEN };
 
+#if GG_PLATFORM_ANDROID
+    GgError ret = gg_byte_vec_append(&script, GG_STR("#!/system/bin/sh\n"));
+#else
     GgError ret = gg_byte_vec_append(&script, GG_STR("#!/bin/bash\n"));
+#endif
     gg_byte_vec_chain_append(
         &ret, &script, GG_STR("export GGL_ROOT_PATH=")
     );
@@ -108,6 +112,10 @@ static GgError generate_run_script(
 
     // Exec line: optionally drop privileges, then run recipe-runner
     if (!is_root && args->user != NULL) {
+#if GG_PLATFORM_ANDROID
+        // Android: no s6-setuidgid, already running as app user
+        gg_byte_vec_chain_append(&ret, &script, GG_STR("exec "));
+#else
         gg_byte_vec_chain_append(
             &ret, &script, GG_STR("exec s6-setuidgid ")
         );
@@ -115,6 +123,7 @@ static GgError generate_run_script(
             &ret, &script, gg_buffer_from_null_term((char *) args->user)
         );
         gg_byte_vec_chain_append(&ret, &script, GG_STR(" "));
+#endif
     } else {
         gg_byte_vec_chain_append(&ret, &script, GG_STR("exec "));
     }

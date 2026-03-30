@@ -3323,6 +3323,18 @@ static void handle_deployment(
             args->root_path.len
         );
         memcpy(recipe2s6_args.service_dir, "/run/service", 12);
+#if GG_PLATFORM_ANDROID
+        memcpy(
+            recipe2s6_args.service_dir,
+            args->root_path.data,
+            args->root_path.len
+        );
+        memcpy(
+            recipe2s6_args.service_dir + args->root_path.len,
+            "/run/service",
+            12
+        );
+#endif
         recipe2s6_args.root_path_fd = root_path_fd;
 
         GgError err = recipe2s6_generate(
@@ -3672,9 +3684,26 @@ static void handle_deployment(
                 &ret, &service_file_path_vec, GG_STR(".service")
             );
 #else
+#if GG_PLATFORM_ANDROID
+            {
+                static uint8_t svc_prefix[PATH_MAX];
+                GgByteVec svc_vec = GG_BYTE_VEC(svc_prefix);
+                ret = gg_byte_vec_append(
+                    &svc_vec,
+                    gg_buffer_from_null_term((char *) args->root_path.data)
+                );
+                gg_byte_vec_chain_append(
+                    &ret, &svc_vec, GG_STR("/run/service/ggl.")
+                );
+                ret = gg_byte_vec_append(
+                    &service_file_path_vec, svc_vec.buf
+                );
+            }
+#else
             ret = gg_byte_vec_append(
                 &service_file_path_vec, GG_STR("/run/service/ggl.")
             );
+#endif
             gg_byte_vec_chain_append(
                 &ret, &service_file_path_vec, component_name
             );
