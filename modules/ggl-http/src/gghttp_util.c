@@ -458,6 +458,12 @@ GgError gghttplib_init_curl(CurlData *curl_data, const char *url) {
         return GG_ERR_FAILURE;
     }
 
+#if GG_PLATFORM_ANDROID
+    // Android: c-ares can't read /etc/resolv.conf (read-only or missing).
+    // Set DNS servers explicitly so libcurl can resolve hostnames.
+    curl_easy_setopt(curl_data->curl, CURLOPT_DNS_SERVERS, "8.8.8.8,8.8.4.4");
+#endif
+
     CURLcode err = curl_easy_setopt(curl_data->curl, CURLOPT_URL, url);
 
     return translate_curl_code(err);
